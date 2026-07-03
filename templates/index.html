@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Insider Threat Dashboard</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">⬡</span>
+    <div>
+      <div class="brand-title">Xsecura</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-btn active" data-view="overview">
+      <span class="nav-icon">◈</span> Risk Overview
+    </button>
+    <button class="nav-btn" data-view="temporal">
+      <span class="nav-icon">◉</span> Temporal Trends
+    </button>
+    <button class="nav-btn" data-view="shap">
+      <span class="nav-icon">◇</span> Global SHAP
+    </button>
+    <button class="nav-btn" data-view="scenarios">
+      <span class="nav-icon">◎</span> Scenario Testing
+    </button>
+    <button class="nav-btn" data-view="logsim">
+      <span class="nav-icon">▤</span> Log Simulation
+    </button>
+  </nav>
+</aside>
+
+<!-- ══ MAIN ══════════════════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── VIEW: Risk Overview ─────────────────────────────────────────────── -->
+  <section class="view active" id="view-overview">
+    <header class="view-header">
+      <div>
+        <h1 class="view-title">Risk Overview</h1>
+        <p class="view-sub">Ranked user-day records by insider-threat risk score</p>
+      </div>
+      <div class="header-controls">
+        <input  id="search-input"   class="ctrl-input"  type="text"   placeholder="Search user …"/>
+        <input  id="min-risk-input" class="ctrl-input"  type="number" placeholder="Min risk" min="0" max="1" step="0.05" value="0"/>
+        <button id="apply-filter"   class="ctrl-btn">Apply</button>
+      </div>
+    </header>
+
+    <!-- stat cards -->
+    <div class="stat-bar" id="stat-bar">
+      <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total Records</div></div>
+      <div class="stat-card accent-red"><div class="stat-val" id="s-flagged">—</div><div class="stat-lbl">Flagged</div></div>
+      <div class="stat-card accent-amber"><div class="stat-val" id="s-insiders">—</div><div class="stat-lbl">True Insiders</div></div>
+      <div class="stat-card accent-blue"><div class="stat-val" id="s-avg-risk">—</div><div class="stat-lbl">Avg Risk Score</div></div>
+    </div>
+
+    <!-- table -->
+    <div class="table-wrap">
+      <table class="data-table" id="risk-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User</th>
+            <th>Day</th>
+            <th>Risk Score</th>
+            <th>Flagged</th>
+            <th>True Label</th>
+            <th>Unique PCs</th>
+            <th>Files</th>
+            <th>Email</th>
+            <th>HTTP</th>
+            <th>Device</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="risk-tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </section>
+
+  <!-- ── VIEW: User-Day Detail ───────────────────────────────────────────── -->
+  <section class="view" id="view-detail">
+    <header class="view-header">
+      <div>
+        <button class="back-btn" id="back-btn">← Back to Overview</button>
+        <h1 class="view-title" id="detail-title">User-Day Detail</h1>
+      </div>
+    </header>
+
+    <div class="detail-grid">
+      <div class="detail-card" id="detail-summary"></div>
+      <div class="detail-card detail-card--wide">
+        <h3 class="card-title">Local SHAP Explanation</h3>
+        <p class="card-sub">Feature contributions for this specific user-day record</p>
+        <div id="detail-force-plot" class="plot-wrap"></div>
+      </div>
+      <div class="detail-card detail-card--full">
+        <h3 class="card-title">Raw Feature Values</h3>
+        <p class="card-sub">Model-input features for this user-day record</p>
+        <div id="detail-feat-table" class="feat-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── VIEW: Temporal Trends ───────────────────────────────────────────── -->
+  <section class="view" id="view-temporal">
+    <header class="view-header">
+      <div>
+        <h1 class="view-title">Temporal Trends</h1>
+        <p class="view-sub">Daily risk scores and flagged counts over the dataset timeline</p>
+      </div>
+    </header>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3 class="card-title">Average Daily Risk Score</h3>
+        <canvas id="chart-risk"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="card-title">Flagged Records Per Day</h3>
+        <canvas id="chart-flagged"></canvas>
+      </div>
+      <div class="chart-card chart-card--full">
+        <h3 class="card-title">Known Insider Activity vs Flagged Records</h3>
+        <canvas id="chart-compare"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── VIEW: Global SHAP ───────────────────────────────────────────────── -->
+  <section class="view" id="view-shap">
+    <header class="view-header">
+      <div>
+        <h1 class="view-title">Global SHAP Analysis</h1>
+        <p class="view-sub">Feature importance across sampled records (mean |SHAP|)</p>
+      </div>
+      <button class="ctrl-btn" id="load-shap-btn">Load / Refresh</button>
+    </header>
+    <div class="shap-layout">
+      <div class="detail-card shap-plot-card">
+        <h3 class="card-title">Top 15 SHAP Feature Importances</h3>
+        <div id="shap-plot-wrap" class="plot-wrap">
+          <p class="placeholder-text">Click "Load / Refresh" to compute global SHAP values.</p>
+        </div>
+      </div>
+      <div class="detail-card shap-info-card">
+        <h3 class="card-title">Feature Ranking</h3>
+        <ol id="shap-ranking" class="shap-rank-list"></ol>
+        <div class="shap-note">
+          <strong>Key insight:</strong> <code>file_count</code> and <code>unique_pcs</code>
+          are the dominant behavioural signals, followed by <code>device_count</code>,
+          <code>email_count</code>, <code>http_count</code> and <code>first_hour</code>.
+          Organisational metadata (role, supervisor, team) ranks significantly lower.
+          Note: <code>total_events</code> has been removed from this stage of the
+          system entirely — it is not used by the model and not shown anywhere
+          in this dashboard.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── VIEW: Scenario Testing ──────────────────────────────────────────── -->
+  <section class="view" id="view-scenarios">
+    <header class="view-header">
+      <div>
+        <h1 class="view-title">Scenario Testing</h1>
+        <p class="view-sub">Run predefined behavioural scenarios through the XGBoost model</p>
+      </div>
+    </header>
+
+    <div class="scenario-grid" id="scenario-grid"></div>
+
+    <div class="detail-card scenario-result-card" id="scenario-result" style="display:none">
+      <h3 class="card-title" id="sc-result-title">Result</h3>
+      <p class="card-sub"  id="sc-result-desc"></p>
+      <div class="sc-badges" id="sc-badges"></div>
+      <div id="sc-plot-wrap" class="plot-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ── VIEW: Log Simulation ────────────────────────────────────────────── -->
+  <section class="view" id="view-logsim">
+    <header class="view-header">
+      <div>
+        <h1 class="view-title">Log Simulation</h1>
+        <p class="view-sub">Synthetic logs generated automatically for random users → parsed → engineered → scored → explained</p>
+      </div>
+      <div class="header-controls">
+        <input id="logsim-count-input" class="ctrl-input" type="number" min="5" max="50" value="30" title="Number of users to simulate"/>
+        <button id="logsim-run-btn" class="ctrl-btn ctrl-btn--primary">↻ Run Simulation</button>
+      </div>
+    </header>
+
+    <!-- pipeline stepper -->
+    <div class="pipeline-stepper">
+      <div class="pipe-step" data-step="1"><span class="pipe-num">1</span>Generate Logs (N users)</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" data-step="2"><span class="pipe-num">2</span>Parse &amp; Engineer Features</div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" data-step="3"><span class="pipe-num">3</span>Predict &amp; Explain (SHAP)</div>
+    </div>
+
+    <!-- stat cards -->
+    <div class="stat-bar" id="logsim-stat-bar">
+      <div class="stat-card"><div class="stat-val" id="ls-total">—</div><div class="stat-lbl">Users Simulated</div></div>
+      <div class="stat-card accent-red"><div class="stat-val" id="ls-flagged">—</div><div class="stat-lbl">Flagged Suspicious</div></div>
+      <div class="stat-card accent-blue"><div class="stat-val" id="ls-avg-risk">—</div><div class="stat-lbl">Avg Risk Score</div></div>
+    </div>
+
+    <span id="logsim-error" class="logsim-error"></span>
+
+    <!-- results table -->
+    <div class="table-wrap">
+      <table class="data-table" id="logsim-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User</th>
+            <th>Day</th>
+            <th>Risk Score</th>
+            <th>Flagged</th>
+            <th>Files</th>
+            <th>Email</th>
+            <th>HTTP</th>
+            <th>Device</th>
+            <th>Unique PCs</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="logsim-tbody">
+          <tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:32px">
+            Running simulation …
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── VIEW: Log Simulation Detail ─────────────────────────────────────── -->
+  <section class="view" id="view-logsim-detail">
+    <header class="view-header">
+      <div>
+        <button class="back-btn" id="logsim-back-btn">← Back to Log Simulation</button>
+        <h1 class="view-title" id="logsim-detail-title">Simulated Record Detail</h1>
+      </div>
+    </header>
+
+    <div class="detail-grid">
+      <div class="detail-card" id="logsim-detail-summary"></div>
+      <div class="detail-card detail-card--wide">
+        <h3 class="card-title">Local SHAP Explanation</h3>
+        <p class="card-sub">Feature contributions for this auto-generated user-day record</p>
+        <div id="logsim-detail-plot" class="plot-wrap"></div>
+      </div>
+      <div class="detail-card detail-card--full">
+        <h3 class="card-title">Step 2 — Engineered Feature Row</h3>
+        <p class="card-sub">Aggregated from the raw log by the Feature Engineer</p>
+        <div id="logsim-detail-feat-grid" class="feat-grid"></div>
+      </div>
+      <div class="detail-card detail-card--full">
+        <h3 class="card-title">Step 1 — Raw Generated Log</h3>
+        <p class="card-sub">Synthetic CERT-style log lines that produced this record (read-only)</p>
+        <div class="logsim-log-grid">
+          <div>
+            <p class="card-title-note" style="margin-bottom:6px">CSV format</p>
+            <pre id="logsim-detail-csv" class="log-readable"></pre>
+          </div>
+          <div>
+            <p class="card-title-note" style="margin-bottom:6px">Human-readable</p>
+            <pre id="logsim-detail-readable" class="log-readable"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══ SPINNER ══════════════════════════════════════════════════════════════ -->
+<div class="spinner-overlay" id="spinner">
+  <div class="spinner-box">
+    <div class="spinner-ring"></div>
+    <p class="spinner-label">Analysing …</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+flask>=3.0.0
+pandas>=2.1.0
+numpy>=1.26.0
+pyarrow>=14.0.0       # for reading feature_df.parquet
+joblib>=1.3.0
+xgboost>=2.0.0
+shap>=0.44.0
+matplotlib>=3.8.0
+scikit-learn>=1.4.0   # for model.feature_names_in_
